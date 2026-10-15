@@ -128,7 +128,7 @@ async function buildDashboard({ from, to, granularity, country, city, platform, 
     AnalyticsEvent.aggregate([
       { $match: pv },
       { $group: { _id: '$vid', pv: { $sum: 1 }, firstVisit: { $max: '$firstVisit' }, s: { $addToSet: '$sid' } } },
-      { $group: { _id: null, visitors: { $sum: 1 }, pageviews: { $sum: '$pv' }, sessions: { $sum: { $size: '$s' } }, newVisitors: { $sum: { $cond: ['$firstVisit', 1, 0] } } } },
+      { $group: { _id: null, visitors: { $sum: 1 }, pageviews: { $sum: '$pv' }, sessions: { $sum: { $size: '$s' } }, newVisitors: { $sum: { $cond: [{ $and: ['$firstVisit', { $lte: [{ $size: '$s' }, 1] }] }, 1, 0] } } } },
     ]),
     AnalyticsEvent.aggregate([
       { $match: { ...match, type: { $in: ['pageview', 'page_leave', ...INTERACTION] } } },
@@ -239,6 +239,7 @@ async function buildDashboard({ from, to, granularity, country, city, platform, 
     ]),
   ]);
 
+  // new = first-ever visit AND a single visit in this range; returning = seen before the range, or came back inside it.
   const t = totalsRows[0] || { visitors: 0, pageviews: 0, sessions: 0, newVisitors: 0 };
   const s = sessionRows[0] || { sessions: 0, pages: 0, bounced: 0, duration: 0 };
   const f = funnelRows[0] || { visited: 0, opened: 0, applied: 0 };
