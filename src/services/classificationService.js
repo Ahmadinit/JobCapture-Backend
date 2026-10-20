@@ -2,7 +2,7 @@ const {
   CATEGORIES,
   deriveTrack,
   normalizeSkills,
-  normalizeCities,
+  resolveLocation,
   deriveLegacyStack,
   canonicalSkill,
   SKILL_DEFAULT_CATEGORY,
@@ -45,13 +45,19 @@ function buildClassification(role = {}) {
   rescued.skills.forEach(s => { if (!skills.includes(s)) skills.push(s); });
   const unknownSkills = [...new Set([...unknown, ...rescued.unknown])].slice(0, 10);
 
-  const cities = normalizeCities(role.cities ?? role.location ?? null);
+  const loc = resolveLocation({
+    cities: role.cities,
+    country: role.country,
+    location: role.location,
+  });
 
   return {
     categories,
     skills,
     unknownSkills,
-    cities,
+    cities: loc.cities,
+    country: loc.country,
+    region: loc.region,
     track: deriveTrack(categories),
     stack: deriveLegacyStack(categories, skills),
     warnings,

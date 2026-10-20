@@ -16,7 +16,10 @@ function findDuplicateByUrl(sourceUrl) {
 
 // Same role at the same company: matches the exact name, or any spelling that normalises to the
 // same company key (e.g. "Acme Pvt Ltd" vs "ACME").
-function findDuplicate(company, jobTitle) {
+// If the company name was only a fallback (e.g. recruiter/poster name), company matching is skipped
+// to prevent collisions across different client openings posted by the same recruiter.
+function findDuplicate(company, jobTitle, { isFallback = false } = {}) {
+  if (isFallback || !company) return Promise.resolve(null);
   const key = companyKey(company);
   const title = new RegExp(`^${escapeRegex(jobTitle)}$`, 'i');
   return Job.findOne({

@@ -7,6 +7,9 @@ const {
   TRACKS,
   SKILLS,
 } = require('../constants');
+const { REGIONS } = require('../taxonomy');
+
+const REGION_OPTIONS = Object.values(REGIONS);
 
 const jobSchema = new mongoose.Schema(
   {
@@ -30,9 +33,16 @@ const jobSchema = new mongoose.Schema(
     stack: { type: String, enum: [...STACK_OPTIONS, null], default: null },
 
     experienceYears: { type: Number, default: null }, // null = not specified in the post
+    country: { type: String, default: null, index: true },
+    region: { type: String, enum: [...REGION_OPTIONS, null], default: null, index: true },
     cities: { type: [String], default: [] }, // city names only
     location: { type: String, default: null }, // legacy free-text location
     remoteType: { type: String, enum: [...REMOTE_TYPE_OPTIONS, null], default: null },
+    remoteScope: { type: String, default: null }, // e.g. "Worldwide", "Pakistan only", "MENA only"
+    postAge: { type: String, default: null }, // relative age parsed from post (e.g. "2d", "1w")
+    postedAt: { type: Date, default: null, index: true }, // approximate original post date
+    isStale: { type: Boolean, default: false },
+
     description: { type: String, default: '' },
     contactEmail: { type: String, default: null },
     applicationLink: { type: String, default: null },
@@ -46,6 +56,7 @@ const jobSchema = new mongoose.Schema(
 );
 
 jobSchema.index({ deletedAt: 1, status: 1, createdAt: -1 });
+jobSchema.index({ deletedAt: 1, status: 1, postedAt: -1 });
 jobSchema.index({ categories: 1 });
 jobSchema.index({ skills: 1 });
 jobSchema.index({ cities: 1 });

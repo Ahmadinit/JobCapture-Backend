@@ -9,7 +9,7 @@ const {
   SKILLS,
   EXPERIENCE_BUCKETS,
 } = require('../constants');
-const { SKILL_DEFS, CATEGORY_DEFS } = require('../taxonomy');
+const { SKILL_DEFS, CATEGORY_DEFS, CITY_TO_COUNTRY, GEOGRAPHY } = require('../taxonomy');
 
 // "a,b,c" (or repeated ?x=a&x=b) -> ['a','b','c']
 function toList(value) {
@@ -27,6 +27,19 @@ function buildFilter(query) {
   and.push({ status: JOB_STATUS_OPTIONS.includes(query.status) ? query.status : 'open' });
 
   if (TRACKS.includes(query.track)) and.push({ track: query.track });
+
+  if (query.region && typeof query.region === 'string') {
+    and.push({ region: query.region.trim() });
+  }
+
+  const countryValues = toList(query.countries);
+  if (countryValues.length) {
+    const namedCountries = countryValues.filter(c => c !== 'unspecified');
+    const clauses = [];
+    if (namedCountries.length) clauses.push({ country: { $in: namedCountries } });
+    if (countryValues.includes('unspecified')) clauses.push({ country: null }, { country: { $exists: false } });
+    and.push({ $or: clauses });
+  }
 
   const categories = pickValid(query.categories, CATEGORIES);
   if (categories.length) and.push({ categories: { $in: categories } });
@@ -49,6 +62,9 @@ function buildFilter(query) {
   const remoteTypes = pickValid(query.remoteType, REMOTE_TYPE_OPTIONS);
   if (remoteTypes.length) and.push({ remoteType: { $in: remoteTypes } });
 
+  const remoteScopes = toList(query.remoteScope);
+  if (remoteScopes.length) and.push({ remoteScope: { $in: remoteScopes } });
+
   // Legacy single-value stack filter, still honoured for older clients.
   if (STACK_OPTIONS.includes(query.stack)) and.push({ stack: query.stack });
 
@@ -67,7 +83,17 @@ function buildFilter(query) {
   const search = typeof query.search === 'string' ? query.search.trim() : '';
   if (search) {
     const rx = new RegExp(escapeRegex(search), 'i');
-    and.push({ $or: [{ jobTitle: rx }, { company: rx }, { description: rx }, { skills: rx }, { categories: rx }] });
+    and.push({
+      $or: [
+        { jobTitle: rx },
+        { company: rx },
+        { description: rx },
+        { skills: rx },
+        { categories: rx },
+        { country: rx },
+        { cities: rx },
+      ],
+    });
   }
 
   return { $and: and };
@@ -81,7 +107,7 @@ async function list(req, res, next) {
 
     const [data, total] = await Promise.all([
       Job.find(filter, '-rawText')
-        .sort({ createdAt: -1 })
+        .sort({ postedAt: -1, createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),
       Job.countDocuments(filter),
@@ -109,14 +135,31 @@ async function facets(req, res, next) {
       { $group: { _id: `$${field}`, n: { $sum: 1 } } },
     ];
 
-    const [categories, skills, cities, tracks, remote, noExperience, noCity, total] = await Promise.all([
+    const [
+      categories,
+      skills,
+      cities,
+      countries,
+      regions,
+      tracks,
+      remote,
+      remoteScopes,
+      noExperience,
+      noCity,
+      noCountry,
+      total,
+    ] = await Promise.all([
       Job.aggregate(unwindCount('categories')),
       Job.aggregate(unwindCount('skills')),
       Job.aggregate(unwindCount('cities')),
+      Job.aggregate(scalarCount('country')),
+      Job.aggregate(scalarCount('region')),
       Job.aggregate(scalarCount('track')),
       Job.aggregate(scalarCount('remoteType')),
+      Job.aggregate(scalarCount('remoteScope')),
       Job.countDocuments({ ...match, experienceYears: null }),
       Job.countDocuments({ ...match, $or: [{ cities: { $size: 0 } }, { cities: { $exists: false } }] }),
+      Job.countDocuments({ ...match, $or: [{ country: null }, { country: { $exists: false } }] }),
       Job.countDocuments(match),
     ]);
 
@@ -133,9 +176,22 @@ async function facets(req, res, next) {
       tracks: countsOf(tracks),
       categories: CATEGORY_DEFS.map(c => ({ name: c.name, track: c.track, count: categoryCounts[c.name] || 0 })),
       skills: SKILL_DEFS.map(s => ({ name: s.name, group: s.group, count: skillCounts[s.name] || 0 })),
-      cities: cities.map(c => ({ name: c._id, count: c.n })).sort((a, b) => b.count - a.count),
+      countries: countries.map(c => ({
+        name: c._id,
+        count: c.n,
+        region: GEOGRAPHY[c._id]?.region || null,
+        flag: GEOGRAPHY[c._id]?.flag || null,
+      })).sort((a, b) => b.count - a.count),
+      countriesUnspecified: noCountry,
+      regions: countsOf(regions),
+      cities: cities.map(c => ({
+        name: c._id,
+        count: c.n,
+        country: CITY_TO_COUNTRY.get(c._id.toLowerCase()) || null,
+      })).sort((a, b) => b.count - a.count),
       citiesUnspecified: noCity,
       remoteTypes: countsOf(remote),
+      remoteScopes: countsOf(remoteScopes),
       experience,
     });
   } catch (e) {

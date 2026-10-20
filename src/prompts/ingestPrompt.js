@@ -3,17 +3,25 @@ const { categoriesBlock, skillsBlock, FIELD_RULES } = require('./taxonomyBlock')
 const INGEST_PROMPT = `You are given raw text extracted from a screenshot of a LinkedIn post. The text \
 includes UI noise from the LinkedIn app itself (things like "Like Comment Share", relative \
 timestamps such as "2d" or "3h", "Follow"/"Connect" buttons, reaction counts, "... more" \
-truncation markers). Ignore all of that noise — it is not part of the post content.
+truncation markers).
 
 First decide whether this post is actually a job posting (someone sharing/announcing a job \
 opening, hiring, or recruiting), as opposed to an unrelated post (opinion, article share, \
 personal update, etc). Jobs of ANY kind count — technical and non-technical.
+
+Also inspect any relative timestamps in the UI noise (e.g. "2h", "1d", "5d", "2w", "1mo", "3mo") \
+or date text:
+- If the post explicitly indicates it is older than 30 days (e.g. ">30d", "2mo", "3mo", or an expired deadline), \
+set "isStale": true. Otherwise set "isStale": false.
+- Set "postAge" to the detected relative timestamp string (e.g. "3d", "2w") or null if not found.
 
 If it IS a job post, extract the following fields. Respond with ONLY a single JSON object, no \
 markdown code fences, matching exactly this shape:
 
 {
   "is_job_post": true,
+  "isStale": boolean,
+  "postAge": string or null,
   "company": string,
   "isCompanyNameFallback": boolean,
   "contactEmail": string or null,
@@ -26,8 +34,10 @@ markdown code fences, matching exactly this shape:
       "skills": [string, ...],
       "unknownSkills": [string, ...],
       "experienceYears": number or null,
+      "country": string or null,
       "cities": [string, ...],
       "remoteType": "remote" | "hybrid" | "onsite" | null,
+      "remoteScope": string or null,
       "description": string
     }
   ]
@@ -53,10 +63,8 @@ Engineer" is ONE job with two categories).
 Per-job field rules (extract each role independently):
 - "jobTitle": that role's title.
 ${FIELD_RULES}
-- "description": a REWRITTEN description of just this role, in your own words — do not copy \
-sentences verbatim from the original post. Paraphrase and restructure it into clear, \
-well-organized prose (responsibilities, requirements, qualifications, etc.), preserving every \
-substantive detail for this specific role, just not its exact original wording.
+- "description": clean up OCR and UI artifacts, but preserve the exact qualifications, requirements, \
+responsibilities, and visa/residency stipulations verbatim. Do NOT summarize or invent criteria.
 
 === CATEGORY LIST (closed — use these exact strings) ===
 ${categoriesBlock()}

@@ -1,0 +1,57 @@
+.topnav { display: flex; gap: 4px; margin-left: 28px; flex: 1; }
+.topnav a { padding: 8px 14px; border-radius: var(--radius-sm); color: var(--text-2); text-decoration: none; font-weight: 500; font-size: 14px; }
+.topnav a:hover { background: var(--slate-bg); color: var(--text); }
+.topnav a.is-active { background: var(--accent-soft); color: var(--accent); }
+a.brand { text-decoration: none; color: inherit; }
+@media (max-width: 720px) { .topbar-note { display: none; } .topnav { margin-left: 12px; } }
+
+.companies-tools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.companies-tools .search { flex: 1; min-width: 240px; }
+.sort-select { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-3); }
+.sort-select .input { height: 48px; padding: 0 12px; }
+
+.company-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; margin-top: 12px; }
+.company-grid.is-loading { opacity: 0.55; }
+.company-grid .skeleton { height: 170px; }
+.company-card { display: flex; flex-direction: column; gap: 12px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: pointer; box-shadow: var(--shadow-sm); transition: border-color 0.12s, box-shadow 0.12s; }
+.company-card:hover, .company-card:focus-visible { border-color: var(--accent); box-shadow: var(--shadow-md); }
+.company-card-top { display: flex; align-items: center; gap: 12px; }
+.company-card-title { flex: 1; min-width: 0; }
+.company-card-title h3 { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-card-title p { font-size: 13px; color: var(--text-3); }
+.company-card-counts { display: flex; gap: 8px; flex-wrap: wrap; }
+.count-pill { font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: var(--slate-bg); color: var(--slate-fg); }
+.count-pill.is-open { background: var(--accent-soft); color: var(--accent); }
+.company-card-foot { margin-top: auto; font-size: 12px; color: var(--text-3); }
+
+.modal.modal-wide { max-width: 820px; }
+.job-list.is-compact { gap: 10px; }
+.company-none, .company-cities { color: var(--text-3); font-size: 14px; margin-bottom: 8px; }
+.email-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.email-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.email-list a { font-weight: 500; overflow-wrap: anywhere; }
+.email-src { font-size: 12px; color: var(--text-3); }
+.tag-personal { background: var(--amber-bg); color: var(--amber-fg); }
+.tag-count { margin-left: 6px; font-size: 11px; opacity: 0.7; }
+
+.past-list { display: grid; gap: 10px; margin: 10px 0; }
+.past-job { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.past-job-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: none; text-align: left; }
+.past-job-title { flex: 1; font-weight: 600; font-size: 15px; }
+.past-job-date { font-size: 12px; color: var(--text-3); }
+.past-job-caret { width: 20px; text-align: center; color: var(--text-3); font-size: 18px; }
+.past-job-skills { margin-top: 8px; }
+.past-job-body { display: grid; gap: 12px; margin-top: 12px; }
+.past-job-body .modal-description { font-size: 14px; max-height: 320px; overflow-y: auto; }
+.past-job-links { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
+
+.suggest { display: grid; gap: 12px; }
+.suggest-intro { font-size: 14px; color: var(--text-2); }
+.suggest-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.suggest label { display: block; font-size: 13px; color: var(--text-2); margin-bottom: 6px; }
+.suggest-row { display: flex; gap: 8px; }
+.suggest-row .input { flex: 1; min-width: 0; height: 40px; padding: 0 10px; }
+.suggest-msg { font-size: 13px; }
+.suggest-msg.is-ok { color: var(--accent); }
+.suggest-msg.is-error { color: var(--danger); }
+.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }

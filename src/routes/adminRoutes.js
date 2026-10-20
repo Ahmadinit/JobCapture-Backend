@@ -4,9 +4,13 @@ const adminJobsController = require('../controllers/adminJobsController');
 const emailsController = require('../controllers/emailsController');
 const analyticsController = require('../controllers/analyticsController');
 const adminCompanies = require('../controllers/adminCompaniesController');
+const syncController = require('../controllers/syncController');
 
 const router = express.Router();
 router.use(requireAuth);
+
+router.post('/sync/trigger', syncController.trigger);
+router.get('/sync/status', syncController.status);
 
 router.get('/jobs', adminJobsController.list);
 router.delete('/jobs/bulk', adminJobsController.bulkClear); // must precede /jobs/:id

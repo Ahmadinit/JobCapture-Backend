@@ -1,7 +1,7 @@
 const Job = require('../models/Job');
 const ApiError = require('../utils/ApiError');
 const { JOB_STATUS_OPTIONS } = require('../constants');
-const { deriveTrack, deriveLegacyStack, normalizeCities } = require('../taxonomy');
+const { deriveTrack, deriveLegacyStack, normalizeCities, resolveLocation } = require('../taxonomy');
 const { normalizeUrl } = require('../services/jobService');
 const escapeRegex = require('../utils/escapeRegex');
 const { registerCompany } = require('../services/companyService');
@@ -25,7 +25,7 @@ async function list(req, res, next) {
     // rawText is large and never shown in the list; it is still returned by GET /jobs/:id.
     const [data, total] = await Promise.all([
       Job.find(filter, '-rawText')
-        .sort({ createdAt: -1 })
+        .sort({ postedAt: -1, createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),
       Job.countDocuments(filter),
@@ -54,10 +54,14 @@ const EDITABLE_FIELDS = [
   'stack',
   'categories',
   'skills',
+  'country',
+  'region',
   'cities',
   'experienceYears',
   'location',
   'remoteType',
+  'remoteScope',
+  'postedAt',
   'description',
   'contactEmail',
   'applicationLink',
@@ -74,10 +78,16 @@ async function update(req, res, next) {
         updates[field] = req.body[field];
       }
     }
-    if (Array.isArray(updates.cities)) {
-      updates.cities = normalizeCities(updates.cities);
+    if (Array.isArray(updates.cities) || 'country' in updates) {
+      const loc = resolveLocation({
+        cities: updates.cities,
+        country: updates.country,
+      });
+      if (Array.isArray(updates.cities)) updates.cities = loc.cities;
+      if (loc.country) updates.country = loc.country;
+      if (loc.region) updates.region = loc.region;
       if (!Object.prototype.hasOwnProperty.call(updates, 'location')) {
-        updates.location = updates.cities.join(', ') || null; // keep the legacy mirror in sync
+        updates.location = (updates.cities || []).join(', ') || updates.country || null;
       }
     }
     if (Array.isArray(updates.categories)) {

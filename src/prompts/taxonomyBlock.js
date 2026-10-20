@@ -35,16 +35,21 @@ MongoDB, Express.js, Angular, Node.js; "LAMP" => PHP, MySQL, Linux). Do not add 
 does not mention. Non-tech roles usually have few or no skills.
 - "unknownSkills": important technologies/tools the post requires that are NOT in the skills list, \
 written as they appear in the post (max 5). Otherwise [].
-- "cities": array of CITY names only where this role is based, e.g. ["Lahore"] or ["Lahore", \
+- "country": name of the primary country where this role is based (e.g. "United Arab Emirates", \
+"Saudi Arabia", "Pakistan", "Egypt", "Qatar", "Kuwait", "United Kingdom", "United States"). If it \
+is a fully worldwide remote role with no country restriction, use null.
+- "cities": array of CITY names only where this role is based, e.g. ["Dubai"] or ["Lahore", \
 "Karachi"]. Strip neighborhoods, streets, phases, offices ("DHA Phase 8, Lahore" => ["Lahore"]). \
-Never include countries, regions, or words like "Remote"/"Onsite". If the post names no city \
+Never include countries, regions, or words like "Remote"/"Onsite" in cities. If the post names no city \
 (including fully remote roles or only a country), use [].
 - "experienceYears": if a range is mentioned (e.g. "3 to 5 years"), use the LOWEST bound only. If \
 a single number is mentioned (e.g. "minimum 2 years"), use it. If the role is explicitly \
 entry-level/no experience required — "Associate" titles, "fresh graduate", "fresher", "intern", \
 "trainee", "entry level" — and no number is given, use 0. If experience is not specified at all, \
 use null. NEVER guess a number that the post does not support.
-- "remoteType": "remote" | "hybrid" | "onsite" only if explicitly indicated for this role, \
-otherwise null. A post-wide policy applies to every listed role.`;
+- "remoteType": "remote" | "hybrid" | "onsite" | null only if explicitly indicated for this role, \
+otherwise null. A post-wide policy applies to every listed role.
+- "remoteScope": if remoteType is "remote" or "hybrid", specify the geographic restriction if stated \
+(e.g. "Worldwide", "MENA only", "Pakistan only", "UAE only"), otherwise null.`;
 
 module.exports = { categoriesBlock, skillsBlock, FIELD_RULES };

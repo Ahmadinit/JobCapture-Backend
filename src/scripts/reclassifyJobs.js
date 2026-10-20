@@ -96,6 +96,8 @@ async function classifyOne(job, model, allowPaidFallback = false) {
       categories: c.categories,
       skills: c.skills,
       unknownSkills: c.unknownSkills,
+      country: c.country,
+      region: c.region,
       cities: c.cities,
       track: c.track,
       stack: c.stack,
@@ -213,11 +215,19 @@ async function apply(args) {
   for (const e of report.entries) {
     if (e.skip || e.error || !e.after) { skipped++; continue; }
     // Re-validate: the report may have been hand-edited.
-    const c = buildClassification({ categories: e.after.categories, skills: e.after.skills, unknownSkills: e.after.unknownSkills, cities: e.after.cities });
+    const c = buildClassification({
+      categories: e.after.categories,
+      skills: e.after.skills,
+      unknownSkills: e.after.unknownSkills,
+      cities: e.after.cities,
+      country: e.after.country,
+    });
     const $set = {
       categories: c.categories,
       skills: c.skills,
       unknownSkills: c.unknownSkills,
+      country: c.country,
+      region: c.region,
       cities: c.cities,
       track: c.track,
       stack: c.stack,

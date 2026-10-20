@@ -18,8 +18,10 @@ function stripCodeFences(text) {
   return fenced ? fenced[1] : trimmed;
 }
 
-function configuredModels({ model } = {}) {
-  return { primary: model || process.env.LLM_MODEL || DEFAULT_PRIMARY_MODEL, fallback: null };
+function configuredModels({ model, fallback = true } = {}) {
+  const primary = model || process.env.LLM_MODEL || DEFAULT_PRIMARY_MODEL;
+  const fallbackModel = fallback ? (process.env.LLM_FALLBACK_MODEL || DEFAULT_FALLBACK_MODEL || null) : null;
+  return { primary, fallback: fallbackModel && fallbackModel !== primary ? fallbackModel : null };
 }
 
 // Sends one prompt to OpenRouter and returns the raw message text.

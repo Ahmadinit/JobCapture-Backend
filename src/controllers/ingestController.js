@@ -6,6 +6,7 @@ const { buildClassification } = require('../services/classificationService');
 const { CLASSIFICATION_VERSION } = require('../taxonomy');
 const { recordServerEvent } = require('../services/analyticsCollector');
 const { registerCompany } = require('../services/companyService');
+const { parsePostAge } = require('../utils/postAge');
 
 const MAX_RAW_TEXT_CHARS = 30000;
 
@@ -38,11 +39,21 @@ async function ingest(req, res, next) {
       throw new ApiError(422, 'This does not look like a job post.');
     }
 
+    // Staleness gate: reject posts detected as older than 30 days
+    const ageInfo = parsePostAge(structured.postAge);
+    if (structured.isStale || ageInfo.isStale) {
+      console.log(`[ingest] rejected: post is stale (${structured.postAge || 'over 30 days old'})`);
+      throw new ApiError(422, 'This job posting appears to be older than 30 days and was rejected.');
+    }
+
     const sourceUrlNormalized = normalizeUrl(sourceUrl);
     const results = [];
+    const isFallbackCompany = !!structured.isCompanyNameFallback;
 
     for (const role of structured.jobs) {
-      const existing = await findDuplicate(structured.company, role.jobTitle);
+      const existing = await findDuplicate(structured.company, role.jobTitle, {
+        isFallback: isFallbackCompany,
+      });
       if (existing) {
         console.log(`[ingest] duplicate of ${existing._id} (matched by company + title: ${role.jobTitle})`);
         results.push({ status: 'duplicate', jobTitle: role.jobTitle, _id: existing._id });
@@ -50,7 +61,7 @@ async function ingest(req, res, next) {
       }
 
       const companyKey = await registerCompany(structured.company, {
-        fallback: !!structured.isCompanyNameFallback,
+        fallback: isFallbackCompany,
         posterName: structured.posterName,
       });
       const classification = buildClassification(role);
@@ -64,7 +75,7 @@ async function ingest(req, res, next) {
         sourceUrlNormalized,
         jobTitle: role.jobTitle,
         company: structured.company,
-        isCompanyNameFallback: !!structured.isCompanyNameFallback,
+        isCompanyNameFallback: isFallbackCompany,
         companyKey,
         categories: classification.categories,
         skills: classification.skills,
@@ -73,16 +84,22 @@ async function ingest(req, res, next) {
         stack: classification.stack,
         classificationVersion: CLASSIFICATION_VERSION,
         experienceYears: Number.isFinite(role.experienceYears) ? role.experienceYears : null,
+        country: classification.country,
+        region: classification.region,
         cities: classification.cities,
-        location: classification.cities.join(', ') || null,
+        location: classification.cities.join(', ') || classification.country || null,
         remoteType: role.remoteType ?? null,
+        remoteScope: role.remoteScope ?? null,
+        postAge: structured.postAge ?? null,
+        postedAt: ageInfo.postedAt || new Date(),
+        isStale: false,
         description: role.description ?? '',
         contactEmail: structured.contactEmail ?? null,
         applicationLink: structured.applicationLink ?? null,
         posterName: structured.posterName ?? null,
       });
 
-      console.log(`[ingest] saved ${job._id} (${job.company} / ${job.jobTitle})`);
+      console.log(`[ingest] saved ${job._id} (${job.company} / ${job.jobTitle} [${job.country || 'No country'}])`);
       results.push({ status: 'created', job });
     }
 
