@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CompanyAvatar from './CompanyAvatar.jsx';
 import CompanyLine from './CompanyLine.jsx';
 import JobTags from './JobTags.jsx';
-import { CloseIcon, ExternalIcon, MailIcon } from '@/components/ui/Icons.jsx';
+import { BookmarkIcon, CheckIcon, CloseIcon, ExternalIcon, MailIcon } from '@/components/ui/Icons.jsx';
 import { jobProps, track } from '@/features/analytics';
 import { capitalize } from '@/utils/format';
 import { experienceLabel } from '../utils/jobDisplay';
@@ -12,8 +12,17 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function JobModal({ job, onClose }) {
+export default function JobModal({
+  job,
+  onClose,
+  isSaved = false,
+  onToggleSave,
+  isApplied = false,
+  onMarkApplied,
+  onUnmarkApplied,
+}) {
   const dialogRef = useRef(null);
+  const [copiedPitch, setCopiedPitch] = useState(false);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement;
@@ -27,6 +36,16 @@ export default function JobModal({ job, onClose }) {
       previouslyFocused?.focus?.();
     };
   }, [onClose]);
+
+  const handleCopyPitch = () => {
+    const leadName = job.posterName || 'Hiring Team';
+    const skills = job.skills?.length ? job.skills.slice(0, 3).join(', ') : 'software engineering';
+    const pitch = `Hi ${leadName},\n\nI saw your post regarding the ${job.jobTitle} position at ${job.company}. With my background in ${skills}, I have built similar systems and would love to contribute to your team.\n\nI've attached my resume and would welcome the chance to connect briefly if you are open to a conversation.\n\nBest regards,`;
+    navigator.clipboard.writeText(pitch);
+    setCopiedPitch(true);
+    setTimeout(() => setCopiedPitch(false), 2500);
+    track('copy_pitch', jobProps(job));
+  };
 
   const locationLabel = [
     job.cities?.length ? job.cities.join(', ') : null,
@@ -44,9 +63,10 @@ export default function JobModal({ job, onClose }) {
       label: 'Experience',
       value: job.experienceYears == null ? 'Not specified' : experienceLabel(job.experienceYears),
     },
+    job.posterName ? { label: 'Hiring Lead', value: job.posterName } : null,
     { label: 'Location', value: locationLabel },
     { label: 'Posted', value: formatDate(job.postedAt || job.createdAt) },
-  ].filter(f => f.value);
+  ].filter(Boolean).filter(f => f.value);
 
   const hasFooter = job.applicationLink || job.contactEmail || job.sourceUrl;
 
@@ -109,9 +129,34 @@ export default function JobModal({ job, onClose }) {
               </a>
             )}
             {job.contactEmail && (
-              <a className={`btn ${job.applicationLink ? 'btn-secondary' : 'btn-primary'}`} href={`mailto:${job.contactEmail}`} onClick={() => track('email_click', jobProps(job))}>
-                <MailIcon /> {job.contactEmail}
-              </a>
+              <>
+                <a className={`btn ${job.applicationLink ? 'btn-secondary' : 'btn-primary'}`} href={`mailto:${job.contactEmail}`} onClick={() => track('email_click', jobProps(job))}>
+                  <MailIcon /> {job.contactEmail}
+                </a>
+                <button type="button" className="btn btn-secondary" onClick={handleCopyPitch}>
+                  {copiedPitch ? 'Copied Pitch!' : 'Copy Cold Pitch'}
+                </button>
+              </>
+            )}
+            {onToggleSave && (
+              <button
+                type="button"
+                className={`btn btn-secondary ${isSaved ? 'is-saved' : ''}`}
+                onClick={() => onToggleSave(job)}
+              >
+                <BookmarkIcon style={{ width: 14, height: 14, fill: isSaved ? 'currentColor' : 'none' }} />
+                {isSaved ? 'Saved' : 'Save for later'}
+              </button>
+            )}
+            {onMarkApplied && (
+              <button
+                type="button"
+                className={`btn ${isApplied ? 'tag-applied' : 'btn-secondary'}`}
+                onClick={() => (isApplied ? onUnmarkApplied?.(job._id) : onMarkApplied(job))}
+              >
+                <CheckIcon style={{ width: 14, height: 14 }} />
+                {isApplied ? 'Applied ✓' : 'Mark Applied'}
+              </button>
             )}
             <span className="spacer" />
             {job.sourceUrl && (

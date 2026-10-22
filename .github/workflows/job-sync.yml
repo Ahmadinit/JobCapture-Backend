@@ -29,12 +29,10 @@ jobs:
         run: npm ci || npm install --omit=dev
 
       - name: Run Job Harvester & Ingestion
-        env:
-          JOB_CAPTURE_API_URL: ${{ secrets.JOB_CAPTURE_API_URL || 'https://job-capture-backend.vercel.app' }}
-          SUBMIT_API_KEY: ${{ secrets.SUBMIT_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        # To run remotely in GitHub Actions, add JOB_CAPTURE_API_URL and SUBMIT_API_KEY in GitHub Repo Settings -> Secrets -> Actions
         run: |
-          echo "Triggering job harvester workflow..."
+          API_URL="${JOB_CAPTURE_API_URL:-https://job-capture-backend.vercel.app}"
+          echo "Triggering job harvester workflow against $API_URL..."
           echo "Reason: ${{ github.event.inputs.reason || 'Scheduled cron' }}"
-          # When you have your scraper script, it runs here and POSTs raw posts to $JOB_CAPTURE_API_URL/api/jobs/ingest
-          # Example: node src/scripts/syncJobs.js
+          # When running in GitHub Actions with repo secrets configured:
+          # python scripts/harvester.py

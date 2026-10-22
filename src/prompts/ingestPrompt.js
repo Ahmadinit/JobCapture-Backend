@@ -11,9 +11,9 @@ personal update, etc). Jobs of ANY kind count — technical and non-technical.
 
 Also inspect any relative timestamps in the UI noise (e.g. "2h", "1d", "5d", "2w", "1mo", "3mo") \
 or date text:
-- If the post explicitly indicates it is older than 30 days (e.g. ">30d", "2mo", "3mo", or an expired deadline), \
+- If the post explicitly indicates it is older than 3 days (e.g. ">3d", "4d", "1w", "2w", "1mo", or an expired deadline), \
 set "isStale": true. Otherwise set "isStale": false.
-- Set "postAge" to the detected relative timestamp string (e.g. "3d", "2w") or null if not found.
+- Set "postAge" to the detected relative timestamp string (e.g. "2h", "1d", "3d") or null if not found.
 
 If it IS a job post, extract the following fields. Respond with ONLY a single JSON object, no \
 markdown code fences, matching exactly this shape:

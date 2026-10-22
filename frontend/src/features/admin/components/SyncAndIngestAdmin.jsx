@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react';
-import { fetchSyncStatus, quickIngestJob, triggerJobSync } from '../api/adminApi';
+import { archiveStaleRoles, fetchSyncStatus, quickIngestJob, triggerJobSync } from '../api/adminApi';
 
 export default function SyncAndIngestAdmin({ onLogout }) {
   const [syncStatus, setSyncStatus] = useState(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [syncError, setSyncError] = useState('');
+
+  const [keywords, setKeywords] = useState('software engineer, full stack developer');
+  const [locations, setLocations] = useState('Pakistan, Dubai, Riyadh');
+  const [limit, setLimit] = useState(10);
+
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveMsg, setArchiveMsg] = useState('');
+  const [archiveError, setArchiveError] = useState('');
 
   const [rawText, setRawText] = useState('');
   const [ingestLoading, setIngestLoading] = useState(false);
@@ -32,7 +40,7 @@ export default function SyncAndIngestAdmin({ onLogout }) {
     setSyncMsg('');
     setSyncError('');
     try {
-      const res = await triggerJobSync();
+      const res = await triggerJobSync({ keywords, locations, limit });
       setSyncMsg(res.message);
       await loadStatus();
     } catch (err) {
@@ -42,9 +50,24 @@ export default function SyncAndIngestAdmin({ onLogout }) {
     }
   };
 
+  const handleArchiveStale = async () => {
+    if (!window.confirm('Archive all open jobs older than 3 days? They will be removed from candidates Explore tab but kept in DB for deduplication.')) return;
+    setArchiveLoading(true);
+    setArchiveMsg('');
+    setArchiveError('');
+    try {
+      const res = await archiveStaleRoles();
+      setArchiveMsg(res.message);
+    } catch (err) {
+      setArchiveError(err.message);
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
   const handleIngest = async (e) => {
     e.preventDefault();
-    if (!rawText.trim()) return;
+    if (ingestLoading || !rawText.trim()) return;
     setIngestLoading(true);
     setIngestResult(null);
     setIngestError('');
@@ -73,28 +96,64 @@ export default function SyncAndIngestAdmin({ onLogout }) {
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
-        {/* Section 1: Trigger GitHub Actions Sync */}
+        {/* Section 1: Trigger Live Harvester */}
         <div className="adm-card" style={{ padding: '1.5rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-          <h2 style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: '0.5rem' }}>1. Actions Harvester Trigger</h2>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: '0.5rem' }}>1. Live Harvester Worker</h2>
           <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1rem' }}>
-            Trigger the scraper runner on GitHub Actions between scheduled cron intervals.
+            Scrapes fresh (≤ 3 days) tech jobs from LinkedIn &amp; Indeed for Pakistan and GCC directly into the database.
           </p>
 
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>Target Keywords (comma-separated)</label>
+              <input
+                className="input"
+                value={keywords}
+                onChange={e => setKeywords(e.target.value)}
+                placeholder="e.g. software engineer, full stack developer"
+                style={{ height: '36px', fontSize: '0.85rem' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>Target Locations (comma-separated)</label>
+              <input
+                className="input"
+                value={locations}
+                onChange={e => setLocations(e.target.value)}
+                placeholder="e.g. Pakistan, Dubai, Riyadh"
+                style={{ height: '36px', fontSize: '0.85rem' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>Jobs per Target</label>
+              <select
+                className="select"
+                value={limit}
+                onChange={e => setLimit(Number(e.target.value))}
+                style={{ height: '36px', fontSize: '0.85rem' }}
+              >
+                <option value={5}>5 jobs per target (Fast test)</option>
+                <option value={10}>10 jobs per target (Recommended)</option>
+                <option value={20}>20 jobs per target (Deep scrape)</option>
+              </select>
+            </div>
+          </div>
+
           <div style={{ fontSize: '0.85rem', marginBottom: '1rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '8px' }}>
-            <div><strong>Mode:</strong> {syncStatus?.configured ? '🟢 GitHub Actions Configured' : '⚪ Local Simulation'}</div>
-            <div><strong>Can Trigger Now:</strong> {syncStatus?.canTrigger ? 'Yes' : `Cooldown (${syncStatus?.cooldownRemainingSec}s left)`}</div>
+            <div><strong>Worker Mode:</strong> {syncStatus?.configured ? '🟢 GitHub Actions' : '🟢 Local Harvester Worker'}</div>
+            <div><strong>Status:</strong> {syncStatus?.isRunning ? '⏳ Harvesting in progress...' : syncStatus?.canTrigger ? 'Ready to run' : `Cooldown (${syncStatus?.cooldownRemainingSec}s left)`}</div>
             {syncStatus?.lastTriggeredAt && (
-              <div><strong>Last Dispatched:</strong> {new Date(syncStatus.lastTriggeredAt).toLocaleTimeString()}</div>
+              <div><strong>Last Run:</strong> {new Date(syncStatus.lastTriggeredAt).toLocaleTimeString()}</div>
             )}
           </div>
 
           <button
             className="btn btn-primary"
             onClick={handleTrigger}
-            disabled={syncLoading || syncStatus?.canTrigger === false}
+            disabled={syncLoading || syncStatus?.isRunning || syncStatus?.canTrigger === false}
             style={{ width: '100%', padding: '0.65rem' }}
           >
-            {syncLoading ? 'Dispatching…' : 'Trigger Fetch Now'}
+            {syncLoading || syncStatus?.isRunning ? 'Harvesting Fresh Jobs…' : 'Harvest Fresh Jobs Now'}
           </button>
 
           {syncMsg && (
@@ -107,6 +166,33 @@ export default function SyncAndIngestAdmin({ onLogout }) {
               ✕ {syncError}
             </div>
           )}
+
+          <hr style={{ margin: '1.25rem 0', borderColor: '#f1f5f9' }} />
+
+          <div>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.25rem' }}>Database Maintenance</h3>
+            <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+              Archive open jobs older than 3 days. Keeps URL deduplication intact to save LLM quota.
+            </p>
+            <button
+              className="btn btn-secondary"
+              onClick={handleArchiveStale}
+              disabled={archiveLoading}
+              style={{ width: '100%', fontSize: '0.85rem' }}
+            >
+              {archiveLoading ? 'Archiving…' : 'Archive Stale Roles (> 3 Days)'}
+            </button>
+            {archiveMsg && (
+              <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#f0fdf4', color: '#166534', borderRadius: '6px', fontSize: '0.8rem' }}>
+                ✓ {archiveMsg}
+              </div>
+            )}
+            {archiveError && (
+              <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#fef2f2', color: '#991b1b', borderRadius: '6px', fontSize: '0.8rem' }}>
+                ✕ {archiveError}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Section 2: Direct Paste & Populate Now */}
@@ -132,7 +218,7 @@ export default function SyncAndIngestAdmin({ onLogout }) {
               disabled={ingestLoading || !rawText.trim()}
               style={{ width: '100%', marginTop: '0.75rem', padding: '0.65rem' }}
             >
-              {ingestLoading ? 'Structuring with LLM (takes ~15-20s)...' : 'Structure & Ingest Now'}
+              {ingestLoading ? 'Structuring with Gemini (~8s)...' : 'Structure & Ingest Now'}
             </button>
           </form>
 

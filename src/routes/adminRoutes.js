@@ -11,6 +11,7 @@ router.use(requireAuth);
 
 router.post('/sync/trigger', syncController.trigger);
 router.get('/sync/status', syncController.status);
+router.post('/sync/archive-stale', syncController.archiveStale);
 
 router.get('/jobs', adminJobsController.list);
 router.delete('/jobs/bulk', adminJobsController.bulkClear); // must precede /jobs/:id

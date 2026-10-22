@@ -4,6 +4,7 @@ import { Link, usePath } from '@/lib/router';
 const NAV = [
   { to: '/', label: 'Jobs', match: p => p === '/' },
   { to: '/companies', label: 'Companies', match: p => p.startsWith('/companies') },
+  { to: '/admin', label: 'Admin / Harvest', match: p => p.startsWith('/admin') },
 ];
 
 export default function Header() {

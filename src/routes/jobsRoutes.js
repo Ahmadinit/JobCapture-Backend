@@ -6,8 +6,8 @@ const publicJobsController = require('../controllers/publicJobsController');
 
 const router = express.Router();
 
-// Admins are not throttled; the no-login submitter is (each submission costs an LLM call).
-const submissionLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 30, skip: req => !req.submitter, message: 'Too many submissions.' });
+// Admins are not throttled; submitter key allows up to 500 submissions per 10 minutes.
+const submissionLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 500, skip: req => !req.submitter, message: 'Too many submissions.' });
 
 router.get('/', publicJobsController.list);
 router.get('/facets', publicJobsController.facets);

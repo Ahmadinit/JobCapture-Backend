@@ -39,11 +39,11 @@ async function ingest(req, res, next) {
       throw new ApiError(422, 'This does not look like a job post.');
     }
 
-    // Staleness gate: reject posts detected as older than 30 days
+    // Staleness gate: reject posts detected as older than 3 days or with unknown age
     const ageInfo = parsePostAge(structured.postAge);
-    if (structured.isStale || ageInfo.isStale) {
-      console.log(`[ingest] rejected: post is stale (${structured.postAge || 'over 30 days old'})`);
-      throw new ApiError(422, 'This job posting appears to be older than 30 days and was rejected.');
+    if (structured.isStale || ageInfo.isStale || ageInfo.ageDays === null) {
+      console.log(`[ingest] rejected: post is stale or age unknown (${structured.postAge || 'unknown / over 3 days old'})`);
+      throw new ApiError(422, 'This job posting appears to be older than 3 days or has an unknown post date and was rejected.');
     }
 
     const sourceUrlNormalized = normalizeUrl(sourceUrl);

@@ -1,15 +1,10 @@
 const ApiError = require('../utils/ApiError');
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// One paid model, no fallback (free reasoning models were ~10x slower). OPENROUTER_MODEL and
-// OPENROUTER_FALLBACK_MODEL are deliberately ignored so deployments that still carry the old
-// free-primary/paid-fallback values keep working unchanged. Optional override: LLM_MODEL.
 const DEFAULT_PRIMARY_MODEL = 'google/gemini-2.5-flash-lite';
 const DEFAULT_FALLBACK_MODEL = '';
-
-// An explicit max_tokens matters: without it OpenRouter reserves the model's maximum (tens of
-// thousands of tokens) against the account balance and can reject requests with HTTP 402.
 const DEFAULT_MAX_TOKENS = 8192;
 
 function stripCodeFences(text) {
@@ -18,15 +13,61 @@ function stripCodeFences(text) {
   return fenced ? fenced[1] : trimmed;
 }
 
+const DEFAULT_GEMINI_DIRECT_MODEL = 'gemini-2.0-flash-lite';
+let geminiQuotaExhaustedUntil = 0;
+
+function getGeminiKey() {
+  return process.env['Job-Capture'] || process.env.GEMINI_API_KEY || null;
+}
+
+function isGeminiAvailable() {
+  return Boolean(getGeminiKey() && Date.now() > geminiQuotaExhaustedUntil);
+}
+
+function handleGeminiError(e) {
+  const msg = String(e?.message || '');
+  if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded')) {
+    geminiQuotaExhaustedUntil = Date.now() + 30 * 60 * 1000;
+    console.warn('[llm] Gemini direct quota reached. Circuit breaker engaged for 30m; routing calls to OpenRouter.');
+  }
+}
+
+async function callGeminiDirect(prompt, { model = DEFAULT_GEMINI_DIRECT_MODEL } = {}) {
+  const apiKey = getGeminiKey();
+  if (!apiKey) return null;
+
+  const url = `${GEMINI_URL}/${model}:generateContent?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Gemini direct API error (${response.status}): ${body}`);
+  }
+
+  const data = await response.json();
+  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!content) {
+    throw new Error('Gemini response had no text parts.');
+  }
+  return content;
+}
+
 function configuredModels({ model, fallback = true } = {}) {
   const primary = model || process.env.LLM_MODEL || DEFAULT_PRIMARY_MODEL;
   const fallbackModel = fallback ? (process.env.LLM_FALLBACK_MODEL || DEFAULT_FALLBACK_MODEL || null) : null;
   return { primary, fallback: fallbackModel && fallbackModel !== primary ? fallbackModel : null };
 }
 
-// Sends one prompt to OpenRouter and returns the raw message text.
-// `models` is tried in order (OpenRouter routes to the next on provider errors / rate limits).
-async function callLlm(prompt, { models, maxTokens } = {}) {
+async function callOpenRouter(prompt, { models, maxTokens } = {}) {
   if (!process.env.OPENROUTER_API_KEY) {
     throw new ApiError(500, 'OPENROUTER_API_KEY is not configured on the server.');
   }
@@ -57,18 +98,43 @@ async function callLlm(prompt, { models, maxTokens } = {}) {
     throw new ApiError(502, 'OpenRouter response had no message content.');
   }
 
-  // Visible in logs so it's clear when the paid fallback was used.
   if (data.model && data.model !== list[0]) {
     console.warn(`[llm] primary model "${list[0]}" not used; answered by "${data.model}"`);
   }
   return content;
 }
 
+// Sends one prompt to the primary provider (Gemini direct) or falls back to OpenRouter.
+async function callLlm(prompt, options = {}) {
+  if (isGeminiAvailable()) {
+    try {
+      return await callGeminiDirect(prompt, options);
+    } catch (e) {
+      handleGeminiError(e);
+      console.warn(`[llm] Gemini direct call failed; falling back to OpenRouter: ${e.message}`);
+    }
+  }
+  return await callOpenRouter(prompt, options);
+}
+
 /**
  * Calls the LLM and parses JSON.
- *  - Calls the single configured model, retrying once if the output was unusable.
+ *  - Tries Gemini direct first if available and not on quota cooldown.
+ *  - Falls back to OpenRouter models if Gemini fails or quota is exhausted.
  */
 async function callLlmJson(prompt, { model, validate, maxTokens, fallback = true } = {}) {
+  if (isGeminiAvailable()) {
+    try {
+      const text = await callGeminiDirect(prompt, { model: DEFAULT_GEMINI_DIRECT_MODEL });
+      const parsed = JSON.parse(stripCodeFences(text));
+      if (validate) validate(parsed);
+      return parsed;
+    } catch (e) {
+      handleGeminiError(e);
+      console.warn(`[llm] Gemini direct JSON failed; falling back to OpenRouter: ${e.message}`);
+    }
+  }
+
   const { primary, fallback: fallbackModel } = configuredModels({ model, fallback });
   const attempts = [
     fallbackModel ? [primary, fallbackModel] : [primary],
@@ -78,7 +144,7 @@ async function callLlmJson(prompt, { model, validate, maxTokens, fallback = true
   let lastError;
   for (const models of attempts) {
     try {
-      const parsed = JSON.parse(stripCodeFences(await callLlm(prompt, { models, maxTokens })));
+      const parsed = JSON.parse(stripCodeFences(await callOpenRouter(prompt, { models, maxTokens })));
       if (validate) validate(parsed);
       return parsed;
     } catch (e) {
@@ -90,4 +156,4 @@ async function callLlmJson(prompt, { model, validate, maxTokens, fallback = true
   });
 }
 
-module.exports = { callLlm, callLlmJson, configuredModels, DEFAULT_PRIMARY_MODEL, DEFAULT_FALLBACK_MODEL };
+module.exports = { callLlm, callLlmJson, configuredModels, DEFAULT_PRIMARY_MODEL, DEFAULT_FALLBACK_MODEL, getGeminiKey };

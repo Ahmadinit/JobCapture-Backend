@@ -412,6 +412,101 @@ svg { display: block; flex-shrink: 0; }
 }
 .tag[data-kind='remote'] { background: var(--accent-soft); color: var(--accent); }
 .tag[data-kind='hybrid'] { background: var(--amber-bg); color: var(--amber-fg); }
+.tag[data-kind='lead'] { background: #e0f2fe; color: #0369a1; font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  .tag[data-kind='lead'] { background: #082f49; color: #38bdf8; }
+}
+
+.btn-icon-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-icon-card:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.btn-icon-card.is-saved {
+  color: #f59e0b;
+  border-color: #fcd34d;
+  background: #fef3c7;
+}
+.btn-mark-applied {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn-mark-applied:hover {
+  border-color: #10b981;
+  color: #059669;
+  background: #ecfdf5;
+}
+.tag-applied {
+  background: #ecfdf5 !important;
+  color: #059669 !important;
+  font-weight: 600;
+  border: 1px solid #a7f3d0;
+}
+.stage-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.stage-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.stage-tab:hover {
+  border-color: var(--text-3);
+}
+.stage-tab.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.stage-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.08);
+}
+.stage-tab.is-active .stage-badge {
+  background: rgba(255, 255, 255, 0.25);
+}
 
 /* ==========================================================================
    States

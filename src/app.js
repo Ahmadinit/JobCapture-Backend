@@ -16,6 +16,19 @@ app.use(express.json());
 
 const DB_STATES = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
 
+app.get('/', (req, res) => {
+  res.json({
+    service: 'JobCapture Backend API',
+    status: 'online',
+    frontend: 'http://localhost:5173',
+    endpoints: {
+      health: '/api/health',
+      jobs: '/api/jobs',
+      facets: '/api/jobs/facets',
+    },
+  });
+});
+
 app.get('/api/health', async (req, res) => {
   const readyState = mongoose.connection.readyState;
   const isHealthy = readyState === 1;

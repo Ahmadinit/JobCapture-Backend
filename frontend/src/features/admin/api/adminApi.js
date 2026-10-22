@@ -51,8 +51,12 @@ export async function adminRequest(path, { method = 'GET', body, params } = {}) 
   return data;
 }
 
-export async function triggerJobSync() {
-  return adminRequest('/api/admin/sync/trigger', { method: 'POST' });
+export async function triggerJobSync(payload = {}) {
+  return adminRequest('/api/admin/sync/trigger', { method: 'POST', body: payload });
+}
+
+export async function archiveStaleRoles() {
+  return adminRequest('/api/admin/sync/archive-stale', { method: 'POST' });
 }
 
 export async function fetchSyncStatus() {

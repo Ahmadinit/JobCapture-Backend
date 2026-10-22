@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node --test tests/locations.test.js tests/postAge.test.js tests/classification.test.js tests/filter.test.js tests/health.test.js tests/sync.test.js"
+    "test": "node --test tests/locations.test.js tests/postAge.test.js tests/classification.test.js tests/filter.test.js tests/health.test.js tests/sync.test.js tests/freshnessAndLeads.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

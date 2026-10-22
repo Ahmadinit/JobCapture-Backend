@@ -1,14 +1,21 @@
 const ApiError = require('../utils/ApiError');
 
-const COOLDOWN_MS = 5 * 60 * 1000; // 5 minute debounce between runs
+const DEBOUNCE_MS = 10 * 1000; // 10 second debounce to prevent rapid double-clicks
+let activeWorker = null;
 let lastTriggeredAt = null;
 let lastTriggerStatus = null;
 
 async function trigger(req, res, next) {
   try {
     const now = Date.now();
-    if (lastTriggeredAt && now - lastTriggeredAt < COOLDOWN_MS) {
-      const remainingSec = Math.ceil((COOLDOWN_MS - (now - lastTriggeredAt)) / 1000);
+
+    // Prevent overlapping runs if worker is still running
+    if (activeWorker && !activeWorker.killed) {
+      throw new ApiError(429, 'Harvester worker is currently running in the background. Please wait for it to complete.');
+    }
+
+    if (lastTriggeredAt && now - lastTriggeredAt < DEBOUNCE_MS) {
+      const remainingSec = Math.ceil((DEBOUNCE_MS - (now - lastTriggeredAt)) / 1000);
       throw new ApiError(429, `Fetch sync is on cooldown. Please wait ${remainingSec}s before triggering again.`);
     }
 
@@ -47,13 +54,70 @@ async function trigger(req, res, next) {
       });
     }
 
-    // Fallback when GitHub Actions token is not configured in local environment
-    lastTriggerStatus = { success: true, mode: 'local_ready', at: new Date().toISOString() };
+    // Run local harvester worker in background
+    const { spawn } = require('child_process');
+    const path = require('path');
+    const fs = require('fs');
+
+    const scriptPath = path.resolve(__dirname, '../../scripts/harvester.py');
+    const pythonExe = process.platform === 'win32' ? 'python' : 'python3';
+    const logPath = path.resolve(__dirname, '../../scripts/harvester.log');
+    const logOut = fs.openSync(logPath, 'a');
+
+    const { keywords, locations, limit } = req.body || {};
+    const args = [scriptPath];
+    if (keywords && typeof keywords === 'string') args.push(`--keywords=${keywords.trim()}`);
+    if (locations && typeof locations === 'string') args.push(`--locations=${locations.trim()}`);
+    if (limit && Number(limit) > 0) args.push(`--limit=${Number(limit)}`);
+
+    const child = spawn(pythonExe, args, {
+      cwd: path.resolve(__dirname, '../../'),
+      detached: true,
+      stdio: ['ignore', logOut, logOut],
+    });
+
+    activeWorker = child;
+    child.on('exit', code => {
+      activeWorker = null;
+      lastTriggerStatus = { success: code === 0, exitCode: code, at: new Date().toISOString() };
+    });
+    child.on('error', err => {
+      activeWorker = null;
+      lastTriggerStatus = { success: false, error: err.message, at: new Date().toISOString() };
+    });
+    child.unref();
+
+    lastTriggerStatus = { success: true, mode: 'local_worker', at: new Date().toISOString() };
     res.json({
-      status: 'acknowledged',
-      mode: 'local_ready',
-      message: 'Sync request acknowledged. Set GITHUB_TOKEN and GITHUB_REPO in .env to dispatch live GitHub Actions runners automatically.',
+      status: 'dispatched',
+      mode: 'local_worker',
+      message: 'Local harvester worker started in background. Crawling fresh LinkedIn and Indeed jobs...',
       triggeredAt: new Date(now).toISOString(),
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function archiveStale(req, res, next) {
+  try {
+    const Job = require('../models/Job');
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const result = await Job.updateMany(
+      {
+        status: 'open',
+        $or: [
+          { isStale: true },
+          { postedAt: { $lt: threeDaysAgo } },
+        ],
+      },
+      { $set: { status: 'archived' } }
+    );
+
+    res.json({
+      success: true,
+      archivedCount: result.modifiedCount,
+      message: `Archived ${result.modifiedCount} stale roles (> 3 days old).`,
     });
   } catch (e) {
     next(e);
@@ -62,17 +126,19 @@ async function trigger(req, res, next) {
 
 function status(req, res) {
   const now = Date.now();
-  const cooldownRemaining = lastTriggeredAt && now - lastTriggeredAt < COOLDOWN_MS
-    ? Math.ceil((COOLDOWN_MS - (now - lastTriggeredAt)) / 1000)
+  const isRunning = Boolean(activeWorker && !activeWorker.killed);
+  const cooldownRemaining = lastTriggeredAt && now - lastTriggeredAt < DEBOUNCE_MS
+    ? Math.ceil((DEBOUNCE_MS - (now - lastTriggeredAt)) / 1000)
     : 0;
 
   res.json({
-    lastTriggeredAt: lastTriggeredAt ? new Date(lastTriggeredAt).toISOString() : null,
+    isRunning,
+    canTrigger: !isRunning && cooldownRemaining === 0,
     cooldownRemainingSec: cooldownRemaining,
-    canTrigger: cooldownRemaining === 0,
+    lastTriggeredAt: lastTriggeredAt ? new Date(lastTriggeredAt).toISOString() : null,
     lastStatus: lastTriggerStatus,
     configured: Boolean(process.env.GITHUB_TOKEN && process.env.GITHUB_REPO),
   });
 }
 
-module.exports = { trigger, status };
+module.exports = { trigger, status, archiveStale };

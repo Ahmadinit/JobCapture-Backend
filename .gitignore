@@ -1,12 +1,12 @@
 node_modules/
 **/node_modules/
-.env
-**/.env
-.env.local
-**/.env.local
+.env*
+!.env.example
 *.log
+**/*.log
 reports/
 dist/
 **/dist/
 .DS_Store
 Thumbs.db
+.vscode/
